@@ -3,19 +3,47 @@ import sys
 import spotipy
 import spotipy.util as util
 from csv import DictReader, DictWriter
-
+import time
 import json
 
 def currentSong(sp):
     '''
     The function pulls the current playing or paused song on the user's spotify client
     Input: Spotipy client
-    Output: The name of the song currently playing
+    Output: Attributes related to the song that could pertain to our analysis
     '''
+    song = {}
+    current = sp.current_user_playing_track()['item'] # Extracting current song from current user from JSON data
 
-    current = sp.current_user_playing_track()['item']['name'] # Extracting current song from current user from JSON data
+    song['name'] = current['name'] # Track name
+    song['artist'] = current['artists'][0]['name'] # Artist name
+    song['album'] = current['album']['name'] # Album name
+    song['release_date'] = current['album']['release_date'] # Release date of track
+    song['duration_ms'] = current['duration_ms'] # Duration of track
+    song['id'] = current['id'] # ID of track
+    song['play_count'] = 0 # Play count for analysis purposes
 
-    return current
+    return song
+
+def recentSong(sp):
+    '''
+    The function pulls information regarding the user's latest played track
+    Input: Spotipy client
+    Output: Attributes of last played song
+    '''
+    song = {}
+    recent = sp.current_user_recently_played(1)['items'][0]
+
+    song['name'] = recent['track']['name'] # Track name
+    song['artist'] = recent['track']['artists'][0]['name'] # Artist name
+    song['album'] = recent['track']['album']['name'] # Album name
+    song['release_date'] = recent['track']['album']['release_date'] # Release date of track
+    song['duration_ms'] = recent['track']['duration_ms'] # Duration of track
+    song['id'] = recent['track']['id'] # ID of track
+    song['played_at'] = recent['played_at'] # Date 
+    song['play_count'] = 0 # Play count for analysis purposes
+
+    return song
 
 def userPlaylists(sp):
     '''
@@ -23,7 +51,6 @@ def userPlaylists(sp):
     Input: Spotipy Client
     Output: Name and Associated ID of the playlists
     '''
-
     playlist_list = [] # Initialized list to compile names from current user
     playlists = sp.current_user_playlists() # JSON data of every playlist from user
     
@@ -73,10 +100,54 @@ def playlistTracks(sp, playlist_id):
         temp['album'] = track['album']['name'] # Album name
         temp['release_date'] = track['album']['release_date'] # Release date of track
         temp['duration_ms'] = track['duration_ms'] # Duration of track
+        temp['id'] = track['id'] # ID of track
+        temp['play_count'] = 0 # Play count for analysis purposes
 
         compiled_info.append(temp) # Append dictionary to running compiling list
 
     return compiled_info
+
+def playCount(sp, playlist):
+    '''
+    The function takes a list of tracks from a playlist and counts the amount of times a track is played within a listening session
+    Input: Listening playlist, Spotipy client
+    Output: Playlist with counted play count
+    '''
+    temp = {'id' : 'abc'} # Temporary variable to compare recent song
+    count =  0 # Count of number of tracks updated
+
+    while True: 
+        recent = recentSong(sp) # Retrieves attributes of previously played songs
+
+        if temp['id'] != recent['id']: # Compares the 'temp' or previous song to 'new' previous song
+            
+            recent_index = search(recent['id'], playlist) # Searches for the index of the song within the playlist
+
+            if recent_index != -1: # If index is -1, then the song is not within the playlist
+                temp = recent # Replaces the 'temp' song with most recently played song
+                playlist[recent_index]['play_count'] += 1 # Adds one to play count to associated song
+                count += 1 # Increase count of number of tracks updated
+
+        if count > 3: 
+            break
+
+        time.sleep(90) # Time delay to prevent script from running unnecessarily quick, 90 seconds
+
+    return playlist 
+
+def search(song_id, playlist):
+    '''
+    The function searchs thorugh the playlist to find the index of the searched song
+    Input: Song id, Playlist tracks
+    Output: Index of searched song within playlist
+    '''
+    index = -1 # Initiliazed value of -1 to indicate false if not found
+
+    for i in range(0, len(playlist)):
+        if playlist[i]['id'] == song_id:
+            index = i
+
+    return index 
 
 def exportTable(track_list, playlist_name):
     '''
@@ -85,9 +156,9 @@ def exportTable(track_list, playlist_name):
     Output: .csv File of Playlist with Attributes
     '''
     file_name = 'playlist_%s.csv' % playlist_name # Formatting of file name
-    field_names = ['name', 'artist', 'album', 'release_date', 'duration_ms'] # Headers of extracted keys
+    field_names = ['name', 'artist', 'album', 'release_date', 'duration_ms', 'id', 'play_count'] # Headers of extracted keys
 
-    with open(file_name, 'w', newline='') as csvfile: # Writes a new .csv file 
+    with open(file_name, 'w', newline='', encoding='utf-8') as csvfile: # Writes a new .csv file, encoding set to 'utf-8' for special characters
         writer = DictWriter(csvfile, fieldnames=field_names)
 
         writer.writeheader()
@@ -113,8 +184,11 @@ if __name__ == '__main__':
         print('Invalid token for', username)
 
     PLAYLIST_NAME = 'na'
+    current_song = currentSong(sp)
+    recent_song = recentSong(sp)
 
     playlist_list = userPlaylists(sp)
     id = playlist_id(PLAYLIST_NAME, playlist_list)
-    na_tracks = playlistTracks(sp, id)
-    exportTable(na_tracks, PLAYLIST_NAME)
+    playlist_tracks = playlistTracks(sp, id)
+    counter_playlist = playCount(sp, playlist_tracks)
+    exportTable(counter_playlist, PLAYLIST_NAME)
