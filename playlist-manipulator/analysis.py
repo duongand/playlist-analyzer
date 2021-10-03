@@ -1,6 +1,6 @@
-import os
 import sys
 import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 import spotipy.util as util
 from csv import DictReader, DictWriter
 import time
@@ -107,10 +107,10 @@ def playlistTracks(sp, playlist_id):
 
     return compiled_info
 
-def playCount(sp, playlist):
+def playCount(sp, playlist, n=50):
     '''
     The function takes a list of tracks from a playlist and counts the amount of times a track is played within a listening session
-    Input: Listening playlist, Spotipy client
+    Input: Listening playlist, Spotipy client, n=number of tracks updated
     Output: Playlist with counted play count
     '''
     temp = {'id' : 'abc'} # Temporary variable to compare recent song
@@ -127,10 +127,11 @@ def playCount(sp, playlist):
                 temp = recent # Replaces the 'temp' song with most recently played song
                 playlist[recent_index]['play_count'] += 1 # Adds one to play count to associated song
                 count += 1 # Increase count of number of tracks updated
-
-        if count > 3: 
+    
+        if count > n: 
             break
-
+        
+        print(count)
         time.sleep(90) # Time delay to prevent script from running unnecessarily quick, 90 seconds
 
     return playlist 
@@ -171,24 +172,21 @@ if __name__ == '__main__':
         print("You need a username!")
         sys.exit()
 
-    SPOTIPY_CLIENT_ID = os.environ.get('SPOTIPY_CLIENT_ID')
-    SPOTIPY_CLIENT_SECRET = os.environ.get('SPOTIPY_CLIENT_SECRET')
-    SPOTIPY_REDIRECT_URI = 'http://localhost:8888'
-
     scope = 'user-read-currently-playing'
-    token = util.prompt_for_user_token(username, scope, client_id=SPOTIPY_CLIENT_ID, client_secret=SPOTIPY_CLIENT_SECRET, redirect_uri=SPOTIPY_REDIRECT_URI)
+    n = 100
 
-    if token:
-        sp = spotipy.Spotify(auth=token)
-    else:
-        print('Invalid token for', username)
+    # The code block below allows for long-running application of the Spotify API 
+    client_credentials_manager = SpotifyClientCredentials()
+    auth_manager = SpotifyOAuth(username=username, scope=scope)
+    sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager, auth_manager=auth_manager)
 
-    PLAYLIST_NAME = 'na'
+    PLAYLIST_NAME = 'unorganized'
     current_song = currentSong(sp)
     recent_song = recentSong(sp)
+
 
     playlist_list = userPlaylists(sp)
     id = playlist_id(PLAYLIST_NAME, playlist_list)
     playlist_tracks = playlistTracks(sp, id)
-    counter_playlist = playCount(sp, playlist_tracks)
+    counter_playlist = playCount(sp, playlist_tracks, n)
     exportTable(counter_playlist, PLAYLIST_NAME)
