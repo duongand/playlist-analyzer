@@ -1,8 +1,7 @@
 import sys
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
-import spotipy.util as util
-from csv import DictReader, DictWriter
+from csv import DictWriter
 import time
 import json
 
@@ -113,6 +112,7 @@ def playCount(sp, playlist, n=50):
     Input: Listening playlist, Spotipy client, n=number of tracks updated
     Output: Playlist with counted play count
     '''
+    play_history = [] # Empty list for play history
     temp = {'id' : 'abc'} # Temporary variable to compare recent song
     count =  0 # Count of number of tracks updated
 
@@ -126,15 +126,16 @@ def playCount(sp, playlist, n=50):
             if recent_index != -1: # If index is -1, then the song is not within the playlist
                 temp = recent # Replaces the 'temp' song with most recently played song
                 playlist[recent_index]['play_count'] += 1 # Adds one to play count to associated song
+                play_history.append(temp)
                 count += 1 # Increase count of number of tracks updated
-    
+
         if count > n: 
             break
         
         print(count)
         time.sleep(90) # Time delay to prevent script from running unnecessarily quick, 90 seconds
 
-    return playlist 
+    return [playlist, play_history]
 
 def search(song_id, playlist):
     '''
@@ -150,13 +151,31 @@ def search(song_id, playlist):
 
     return index 
 
-def exportTable(track_list, playlist_name):
+def exportPlayHistory(play_history, playlist_name):
+    '''
+    The function takes a compiled list of tracks showcasing the order of the listening session.
+    Input: List of tracks in play order
+    Output: .csv file of play history with attributes
+    '''
+
+    date = time.strftime("%Y-%m-%d", time.localtime())
+    file_name = 'play_history_%s_%s.csv' % (playlist_name, date)
+    field_names = ['name', 'artist', 'album', 'release_date', 'duration_ms', 'id', 'played_at', 'play_count']
+
+    with open(file_name, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = DictWriter(csvfile, fieldnames=field_names)
+
+        writer.writeheader()
+        writer.writerows(play_history)
+
+def exportPlayCount(track_list, playlist_name):
     '''
     The function takes a compiled and filtered list of a playlist to write into a csv
-    Input: Correctly Formatted Track List, Playlist Name
-    Output: .csv File of Playlist with Attributes
+    Input: Correctly formatted track list, Playlist name
+    Output: .csv file of playlists with attributes
     '''
-    file_name = 'playlist_%s.csv' % playlist_name # Formatting of file name
+    date = time.strftime("%Y-%m-%d", time.localtime())
+    file_name = 'playlist_%s_%s.csv' % (playlist_name, date) # Formatting of file name
     field_names = ['name', 'artist', 'album', 'release_date', 'duration_ms', 'id', 'play_count'] # Headers of extracted keys
 
     with open(file_name, 'w', newline='', encoding='utf-8') as csvfile: # Writes a new .csv file, encoding set to 'utf-8' for special characters
@@ -173,7 +192,7 @@ if __name__ == '__main__':
         sys.exit()
 
     scope = 'user-read-currently-playing'
-    n = 100
+    n = 10
 
     # The code block below allows for long-running application of the Spotify API 
     client_credentials_manager = SpotifyClientCredentials()
@@ -188,5 +207,6 @@ if __name__ == '__main__':
     playlist_list = userPlaylists(sp)
     id = playlist_id(PLAYLIST_NAME, playlist_list)
     playlist_tracks = playlistTracks(sp, id)
-    counter_playlist = playCount(sp, playlist_tracks, n)
-    exportTable(counter_playlist, PLAYLIST_NAME)
+    counter_playlist, play_history = playCount(sp, playlist_tracks, n)
+    exportPlayCount(counter_playlist, PLAYLIST_NAME)
+    exportPlayHistory(play_history, PLAYLIST_NAME)
