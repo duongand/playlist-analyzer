@@ -192,14 +192,13 @@ if __name__ == '__main__':
         sys.exit()
 
     scope = 'user-read-currently-playing'
-    n = 10
 
     # The code block below allows for long-running application of the Spotify API 
     client_credentials_manager = SpotifyClientCredentials()
     auth_manager = SpotifyOAuth(username=username, scope=scope)
     sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager, auth_manager=auth_manager)
 
-    PLAYLIST_NAME = 'unorganized'
+    PLAYLIST_NAME = 'head empty; eyes watering'
     current_song = currentSong(sp)
     recent_song = recentSong(sp)
 
@@ -207,6 +206,9 @@ if __name__ == '__main__':
     playlist_list = userPlaylists(sp)
     id = playlist_id(PLAYLIST_NAME, playlist_list)
     playlist_tracks = playlistTracks(sp, id)
+
+    n = len(playlist_tracks) * 3
+
     counter_playlist, play_history = playCount(sp, playlist_tracks, n)
     exportPlayCount(counter_playlist, PLAYLIST_NAME)
     exportPlayHistory(play_history, PLAYLIST_NAME)
